@@ -10,25 +10,19 @@
  *******************************************************************************/
 package org.oscm.app.openstack.controller;
 
-import org.oscm.app.openstack.KeystoneClient;
-import org.oscm.app.openstack.NovaProcessor;
-import org.oscm.app.openstack.OpenStackConnection;
-import org.oscm.app.openstack.data.FlowState;
-import org.oscm.app.openstack.exceptions.OpenStackConnectionException;
-import org.oscm.app.openstack.i18n.Messages;
-import org.oscm.app.openstack.usage.UsageConverter;
-import org.oscm.app.v2_0.APPlatformServiceFactory;
-import org.oscm.app.v2_0.data.*;
-import org.oscm.app.v2_0.exceptions.APPlatformException;
-import org.oscm.app.v2_0.exceptions.ConfigurationException;
-import org.oscm.app.v2_0.exceptions.LogAndExceptionConverter;
-import org.oscm.app.v2_0.exceptions.ServiceNotReachableException;
-import org.oscm.app.v2_0.intf.APPlatformController;
-import org.oscm.app.v2_0.intf.APPlatformService;
-import org.oscm.app.v2_0.intf.ControllerAccess;
+import static org.oscm.app.openstack.controller.PropertyHandler.RESOURCETYPE_PROJ;
+import static org.oscm.app.openstack.controller.PropertyHandler.STACK_NAME;
+import static org.oscm.app.openstack.data.FlowState.CREATE_PROJECT;
+import static org.oscm.app.openstack.data.FlowState.CREATION_REQUESTED;
+import static org.oscm.app.openstack.data.FlowState.DELETE_PROJECT;
+import static org.oscm.app.openstack.data.FlowState.DELETION_REQUESTED;
+import static org.oscm.app.openstack.data.FlowState.MODIFICATION_REQUESTED;
+import static org.oscm.app.openstack.data.FlowState.UPDATE_PROJECT;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Properties;
+import java.util.UUID;
 
 import javax.annotation.PostConstruct;
 import javax.ejb.Remote;
@@ -38,14 +32,34 @@ import javax.ejb.TransactionAttributeType;
 import javax.faces.context.FacesContext;
 import javax.inject.Inject;
 import javax.servlet.http.HttpSession;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Properties;
-import java.util.UUID;
 
-import static org.oscm.app.openstack.controller.PropertyHandler.RESOURCETYPE_PROJ;
-import static org.oscm.app.openstack.controller.PropertyHandler.STACK_NAME;
-import static org.oscm.app.openstack.data.FlowState.*;
+import org.oscm.app.openstack.KeystoneClient;
+import org.oscm.app.openstack.NovaProcessor;
+import org.oscm.app.openstack.OpenStackConnection;
+import org.oscm.app.openstack.data.FlowState;
+import org.oscm.app.openstack.exceptions.OpenStackConnectionException;
+import org.oscm.app.openstack.i18n.Messages;
+import org.oscm.app.openstack.usage.UsageConverter;
+import org.oscm.app.v2_0.APPlatformServiceFactory;
+import org.oscm.app.v2_0.data.Context;
+import org.oscm.app.v2_0.data.ControllerSettings;
+import org.oscm.app.v2_0.data.InstanceDescription;
+import org.oscm.app.v2_0.data.InstanceStatus;
+import org.oscm.app.v2_0.data.InstanceStatusUsers;
+import org.oscm.app.v2_0.data.LocalizedText;
+import org.oscm.app.v2_0.data.OperationParameter;
+import org.oscm.app.v2_0.data.ProvisioningSettings;
+import org.oscm.app.v2_0.data.ServiceUser;
+import org.oscm.app.v2_0.data.Setting;
+import org.oscm.app.v2_0.exceptions.APPlatformException;
+import org.oscm.app.v2_0.exceptions.ConfigurationException;
+import org.oscm.app.v2_0.exceptions.LogAndExceptionConverter;
+import org.oscm.app.v2_0.exceptions.ServiceNotReachableException;
+import org.oscm.app.v2_0.intf.APPlatformController;
+import org.oscm.app.v2_0.intf.APPlatformService;
+import org.oscm.app.v2_0.intf.ControllerAccess;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Implementation of an OpenStack service controller based on the Asynchronous
@@ -78,7 +92,9 @@ public class OpenStackController extends ProvisioningValidator implements APPlat
 	private static final String SESSION_USER_LOCALE = "loggedInUserLocale";
 
 	private APPlatformService platformService;
+
 	private OpenStackControllerAccess controllerAccess;
+	private HashMap<String, Setting> settings;
 
 	/**
 	 * Retrieves an <code>APPlatformService</code> instance.
@@ -567,19 +583,14 @@ public class OpenStackController extends ProvisioningValidator implements APPlat
 		return false;
 	}
 
-	private HashMap<String, Setting> settings;
-
 	@Override
 	public boolean ping(String controllerId) throws ServiceNotReachableException {
 		try {
 			settings = getOpenStackSettings();
-		} catch (APPlatformException e) {
-			throw new ServiceNotReachableException(
-					getLocalizedErrorMessage("ui.config.error.unable.to.get.openstack.controller.settings"));
-		}
-		OpenStackConnection connection = getOpenstackConnection();
-		KeystoneClient client = getKeystoneClient(connection);
-		try {
+
+			OpenStackConnection connection = getOpenstackConnection();
+			KeystoneClient client = getKeystoneClient(connection);
+
 			client.authenticate(settings.get("API_USER_NAME").getValue(), settings.get("API_USER_PWD").getValue(),
 					settings.get("DOMAIN_NAME").getValue(), settings.get("TENANT_ID").getValue());
 			LOGGER.info("Verification of connection to Openstack successful. " + "Keystone API URL: "
@@ -587,7 +598,7 @@ public class OpenStackController extends ProvisioningValidator implements APPlat
 			return true;
 		} catch (OpenStackConnectionException | APPlatformException e) {
 			throw new ServiceNotReachableException(
-					getLocalizedErrorMessage("ui.config.error.unable.to.connect.to.openstack"));
+					getLocalizedErrorMessage("ui.config.error.unable.to.connect.to.openstack"), e);
 		}
 	}
 
@@ -595,39 +606,53 @@ public class OpenStackController extends ProvisioningValidator implements APPlat
 	public boolean canPing() throws ConfigurationException {
 		try {
 			settings = getOpenStackSettings();
-		} catch (APPlatformException e) {
-			ConfigurationException exception = new ConfigurationException(
+		} catch (ServiceNotReachableException ne) {
+			throw new ConfigurationException(
 					getLocalizedErrorMessage("ui.config.error.unable.to.connect.to.openstack"));
-			exception.setStackTrace(e.getStackTrace());
-			throw exception;
 		}
-		if ((settings.get("KEYSTONE_API_URL") != null) || (settings.get("API_USER_NAME") != null)
-				|| (settings.get("API_USER_PWD") != null) || (settings.get("DOMAIN_NAME") != null)
-				|| (settings.get("TENANT_ID") != null)) {
-			return true;
-		} else {
-			throw new ConfigurationException(getLocalizedErrorMessage("ui.config.error.missing.configuration"));
-		}
+		return true;
+
 	}
 
-	protected HashMap<String, Setting> getOpenStackSettings() throws APPlatformException {
+	private void assertMandatorySettingsMissing() throws ConfigurationException {
+		final String missing = anyMissing("KEYSTONE_API_URL", "API_USER_NAME", "API_USER_PWD", "DOMAIN_NAME",
+				"TENANT_ID");
+		if (!missing.isEmpty()) {
+			throw new ConfigurationException(
+					getLocalizedErrorMessage("ui.config.error.missing.configuration", missing));
+		}
 
-		platformService.requestControllerSettings(OpenStackController.ID);
+	}
 
-		if (controllerAccess != null && controllerAccess.getSettings()!=null) {
-			HashMap<String, Setting> settings = controllerAccess.getSettings().getConfigSettings();
-			try {
-				if (settings == null) {
-					throw new ConfigurationException(
-							getLocalizedErrorMessage("ui.config.error.unable.to.get.openstack.controller.settings"));
-				}
-				return settings;
-			} catch (APPlatformException e) {
-				throw new ConfigurationException(
-						getLocalizedErrorMessage("ui.config.error.unable.to.get.openstack.controller.settings"));
+	private String anyMissing(String... keys) {
+		StringBuffer sb = new StringBuffer();
+		for (String key : keys) {
+			if (settings.get(key) == null || settings.get(key).getValue().isEmpty()) {
+				if (sb.toString().trim().length() > 0)
+					sb.append(", ");
+				sb.append(key);
+
 			}
 		}
-		return emptySettings();
+		return sb.toString();
+	}
+
+	protected HashMap<String, Setting> getOpenStackSettings()
+			throws ServiceNotReachableException, ConfigurationException {
+		try {
+			platformService.requestControllerSettings(OpenStackController.ID);
+
+			if (controllerAccess != null && controllerAccess.getSettings() != null) {
+				settings = controllerAccess.getSettings().getConfigSettings();
+				assertMandatorySettingsMissing();
+				return settings;
+			}
+			return emptySettings();
+		} catch (APPlatformException e) {
+			throw new ServiceNotReachableException(
+					getLocalizedErrorMessage("ui.config.error.unable.to.get.openstack.controller.settings"));
+		}
+
 	}
 
 	private HashMap<String, Setting> emptySettings() {
@@ -661,22 +686,13 @@ public class OpenStackController extends ProvisioningValidator implements APPlat
 		return FacesContext.getCurrentInstance();
 	}
 
-	private PasswordAuthentication getPasswordAuthentication() {
-		FacesContext facesContext = getFacesContext();
-		HttpSession session = getSession(facesContext);
-		Object userId = session.getAttribute("loggedInUserId");
-		Object password = session.getAttribute("loggedInUserPassword");
-
-		return new PasswordAuthentication(userId.toString(), password.toString());
-	}
-
 	protected HttpSession getSession(FacesContext facesContext) {
 		return (HttpSession) facesContext.getExternalContext().getSession(false);
 	}
 
-	private String getLocalizedErrorMessage(String messageKey) {
+	private String getLocalizedErrorMessage(String messageKey, String... params) {
 		String locale = readUserFromSession().getLocale();
-		return Messages.get(locale, messageKey);
+		return Messages.get(locale, messageKey, params);
 	}
 
 	protected FacesContext getFacesContext() {

@@ -459,7 +459,6 @@ public class VMController implements APPlatformController {
 			platformService.requestControllerSettings(Controller.ID);
 			if (controllerAccess != null) {
 				controllerSettings = controllerAccess.getSettings().getConfigSettings();
-
 			}
 		} catch (APPlatformException e) {
 			exception = new ConfigurationException(getLocalizedErrorMessage("ui.config.error.unable.to.get.settings"));
@@ -508,8 +507,9 @@ public class VMController implements APPlatformController {
 	 * Validates configuration for provided VCenter
 	 */
 	private boolean validateControllerParams(VCenter vCenter) throws ConfigurationException {
-		if (vCenter.paramsNotNullOrEmpty()) {
-			throw new ConfigurationException(getLocalizedErrorMessage("ui.config.error.controller.param.empty"));
+		if (vCenter.mandatorySettingsMissing()) {
+			throw new ConfigurationException(
+					getLocalizedErrorMessage("ui.config.error.controller.param.empty", vCenter.anyMissing()));
 		}
 		return true;
 	}
@@ -518,9 +518,9 @@ public class VMController implements APPlatformController {
 	 * Retrieves localized message, based on provided property key and current
 	 * user's locale settings
 	 */
-	private String getLocalizedErrorMessage(String messageKey) {
+	private String getLocalizedErrorMessage(String messageKey, String... params) {
 		String locale = readUserFromSession().getLocale();
-		return Messages.get(locale, messageKey);
+		return Messages.get(locale, messageKey, params);
 	}
 
 	/**
@@ -539,17 +539,6 @@ public class VMController implements APPlatformController {
 			user.setLocale(locale);
 		}
 		return user;
-	}
-
-	/**
-	 * Checks if config params for provided VCenter are not empty
-	 */
-	private boolean checkIfParamsAreEmpty(VCenter vCenter) throws ConfigurationException {
-		if (vCenter.getUrl().isEmpty() || vCenter.getUserid().isEmpty() || vCenter.getPassword().isEmpty()) {
-			throw new ConfigurationException(getLocalizedErrorMessage("ui.config.error.controller.param.empty"));
-		} else {
-			return true;
-		}
 	}
 
 	/**
