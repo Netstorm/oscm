@@ -424,10 +424,8 @@ public class VMController implements APPlatformController {
 				return true;
 			}
 		} catch (Exception e) {
-			ServiceNotReachableException ex = new ServiceNotReachableException(
-					getLocalizedErrorMessage("ui.config.error.unable.to.connect.to.vmware"));
-			ex.setStackTrace(e.getStackTrace());
-			throw ex;
+			throw new ServiceNotReachableException(
+					getLocalizedErrorMessage("ui.config.error.unable.to.connect.to.vmware"), e);
 		}
 		return false;
 
@@ -453,25 +451,19 @@ public class VMController implements APPlatformController {
 	private HashMap<String, Setting> getControllerSettings() throws ConfigurationException {
 
 		ConfigurationException exception;
-		HashMap<String, Setting> controllerSettings = null;
-
+		HashMap<String, Setting> controllerSettings = new HashMap<String, Setting>();
 		try {
 			platformService.requestControllerSettings(Controller.ID);
-			if (controllerAccess != null) {
+			if (controllerAccess != null && controllerAccess.getSettings() != null) {
 				controllerSettings = controllerAccess.getSettings().getConfigSettings();
 			}
+			return controllerSettings;
 		} catch (APPlatformException e) {
 			exception = new ConfigurationException(getLocalizedErrorMessage("ui.config.error.unable.to.get.settings"));
 			exception.setStackTrace(e.getStackTrace());
 			throw exception;
 		}
 
-		if (controllerSettings != null && !controllerSettings.isEmpty())
-			return controllerSettings;
-		else {
-			exception = new ConfigurationException(getLocalizedErrorMessage("ui.config.error.unable.to.get.settings"));
-			throw exception;
-		}
 	}
 
 	protected HttpSession getSession(FacesContext facesContext) {

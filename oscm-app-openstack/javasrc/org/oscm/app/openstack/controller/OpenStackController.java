@@ -587,15 +587,17 @@ public class OpenStackController extends ProvisioningValidator implements APPlat
 	public boolean ping(String controllerId) throws ServiceNotReachableException {
 		try {
 			settings = getOpenStackSettings();
+			if (settings != null && !settings.isEmpty()) {
+				OpenStackConnection connection = getOpenstackConnection();
+				KeystoneClient client = getKeystoneClient(connection);
 
-			OpenStackConnection connection = getOpenstackConnection();
-			KeystoneClient client = getKeystoneClient(connection);
-
-			client.authenticate(settings.get("API_USER_NAME").getValue(), settings.get("API_USER_PWD").getValue(),
-					settings.get("DOMAIN_NAME").getValue(), settings.get("TENANT_ID").getValue());
-			LOGGER.info("Verification of connection to Openstack successful. " + "Keystone API URL: "
-					+ settings.get("KEYSTONE_API_URL").getValue());
-			return true;
+				client.authenticate(settings.get("API_USER_NAME").getValue(), settings.get("API_USER_PWD").getValue(),
+						settings.get("DOMAIN_NAME").getValue(), settings.get("TENANT_ID").getValue());
+				LOGGER.info("Verification of connection to Openstack successful. " + "Keystone API URL: "
+						+ settings.get("KEYSTONE_API_URL").getValue());
+				return true;
+			}
+			return false;
 		} catch (OpenStackConnectionException | APPlatformException e) {
 			throw new ServiceNotReachableException(
 					getLocalizedErrorMessage("ui.config.error.unable.to.connect.to.openstack"), e);
@@ -648,6 +650,8 @@ public class OpenStackController extends ProvisioningValidator implements APPlat
 				return settings;
 			}
 			return emptySettings();
+		} catch (ConfigurationException e) {
+			throw e;
 		} catch (APPlatformException e) {
 			throw new ServiceNotReachableException(
 					getLocalizedErrorMessage("ui.config.error.unable.to.get.openstack.controller.settings"));

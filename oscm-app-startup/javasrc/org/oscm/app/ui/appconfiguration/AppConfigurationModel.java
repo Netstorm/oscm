@@ -33,6 +33,7 @@ public class AppConfigurationModel extends BaseModel {
         private boolean pageDirty;
         private String loggedInUserId;
         private boolean restartRequired = false;
+       	
         private Map<String, Boolean> pingButtonVisibilityMap = new HashMap<String, Boolean>() {{
                 put(Configuration.AWS_CONTROLLER_ID, false);
                 put(Configuration.AZURE_CONTROLLER_ID, false);
@@ -40,6 +41,7 @@ public class AppConfigurationModel extends BaseModel {
                 put(Configuration.SHELL_CONTROLLER_ID, false);
                 put(Configuration.VMWARE_CONTROLLER_ID, false);
         }};
+        
         private Set<CanPingErrorWrapper> canPingExceptionMessageSet = new HashSet<>();
 
         public boolean isInitialized() {
