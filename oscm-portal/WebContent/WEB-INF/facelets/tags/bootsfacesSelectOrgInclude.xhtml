@@ -14,16 +14,13 @@
   <adm:outputLabel value="#{msg['organization.organizationId']}" required="true"/>
   
 
-<!--   onchange="if(AdmUtils.isNotDirtyOrConfirmed()){#{rich:element('selectedKey')}.value=this.options[this.selectedIndex].value;
-#{rich:element('selectForm')}.submit();}else{AdmUtils.restoreValue(this)}"  -->
-       
          <b:selectOneMenu styleClass="select" select2="true" id="organizationId" value="#{operatorSelectOrgBean.selectOrganizationIncludeBean.organizationId}">
               <adm:selectItemPleaseSelect itemValue="0" />
               <c:forEach items="#{operatorSelectOrgBean.suggestedOrgs}" var="organization">
                 <f:selectItem itemLabel="#{organization.nameWithOrganizationId}" itemValue="#{organization.organizationId}" />
               </c:forEach>
               
-                <f:ajax event="change" render=":manageOrganizationsForm" 
+                <f:ajax event="change" render="@form" 
                          listener="#{operatorSelectOrgBean.selectOrganizationAction}"/>
             </b:selectOneMenu>
             
@@ -32,31 +29,6 @@
         <h:outputText value="" />
       </adm:panelGrid>
      
-<!--              
-       <rich:autocomplete
-           
-            
-           
-            label="#{msg['organization.organizationId']}"
-            value="#{autocompleteValue}"
-                     
-            onselectitem="submitForm();"
-            
-            maxlength="#{appBean.idLen}"
-            minChars="3"
-            
-            disabled="#{disabled}"
-            
-            fetchValue="#{organization.organizationId}"
-            var="organization"
-            
-           
-            autocompleteMethod="#{operatorSelectOrgBean.suggest}" >
-     
-    </rich:autocomplete>
-   
-   -->
-
- <!--   <adm:message id="organizationIdErrorMsg" for="organizationId" />  -->
+   <adm:message id="organizationIdErrorMsg" for="organizationId" /> 
 
 </ui:composition>
